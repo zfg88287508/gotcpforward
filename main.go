@@ -35,10 +35,6 @@ func main() {
 	flag.StringVar(&l, "l", "", "listen host:port")
 	flag.StringVar(&r, "r", "", "remote host:port")
 	flag.Parse()
-	if len(flag.Args()) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
 	fmt.Println(l)
 	fmt.Println(r)
 	listener, err := net.Listen("tcp", l)
