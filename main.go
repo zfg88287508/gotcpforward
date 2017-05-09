@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/fatih/pool"
 	"io"
 	"net"
 )
@@ -12,13 +13,12 @@ var (
 	r string
 )
 
-func handler(conn net.Conn, r string) {
-	client, err := net.Dial("tcp", r)
+func handler(conn net.Conn, p pool.Pool) {
+	client, err := p.Get()
 	if err != nil {
 		fmt.Println("Dial remote failed", err)
 		return
 	}
-	fmt.Println("Connected to remote ", r)
 	go func() {
 		defer client.Close()
 		defer conn.Close()
@@ -41,6 +41,8 @@ func main() {
 		fmt.Println("Failed to listen on ", l, err)
 		return
 	}
+	factory := func() (net.Conn, error) { return net.Dial("tcp", r) }
+	p, err := pool.NewChannelPool(5, 30, factory)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -48,6 +50,6 @@ func main() {
 			return
 		}
 		fmt.Println("Accepted connection")
-		go handler(conn, r)
+		go handler(conn, p)
 	}
 }
