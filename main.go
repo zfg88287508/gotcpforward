@@ -22,12 +22,14 @@ func handler(conn net.Conn, r string) {
 	go func() {
 		defer client.Close()
 		defer conn.Close()
-		io.Copy(client, conn)
+		clientbuf := make([]byte, 512*1024)
+		io.CopyBuffer(client, conn, clientbuf)
 	}()
 	go func() {
 		defer client.Close()
 		defer conn.Close()
-		io.Copy(conn, client)
+		serverbuf := make([]byte, 512*1024)
+		io.CopyBuffer(conn, client, serverbuf)
 	}()
 }
 func main() {
