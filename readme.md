@@ -4,5 +4,5 @@ This application can forward tcp connection to upstream.
 ## build
 
 ```
-go build -v -a -ldflags ' -s -w -static -extldflags "-static"' .
+CGO_ENABLED=0 go build -v -a -ldflags ' -s -w  -extldflags "-static"' .
 ```

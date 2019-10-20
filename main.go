@@ -6,34 +6,47 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
+	"time"
 )
 
 var bufSize = 8 * 1024
+var retriesCnt = 5
+var dialTimeOut = 2 * time.Second
 var (
 	l string
 	r string
+
 )
 
 
 func handler(conn net.Conn, r string) {
-	client, err := net.Dial("tcp", r)
-	if err != nil {
-		fmt.Println("Dial remote failed", err)
-		return
+	var i = 0
+	for i < retriesCnt {
+		fmt.Println("Dial timeout: ", dialTimeOut)
+		fmt.Println("Dial " + strconv.Itoa(i) + " times")
+		client, err := net.DialTimeout("tcp", r, dialTimeOut)
+		if err != nil {
+			fmt.Println("Dial remote failed", err)
+			i++
+			continue
+		}
+		fmt.Println("To: Connected to remote ", r)
+		go func() {
+			defer client.Close()
+			defer conn.Close()
+			clientbuf := make([]byte, bufSize)
+			io.CopyBuffer(client, conn, clientbuf)
+		}()
+		go func() {
+			defer client.Close()
+			defer conn.Close()
+			serverbuf := make([]byte, bufSize)
+			io.CopyBuffer(conn, client, serverbuf)
+		}()
+		break
 	}
-	fmt.Println("To: Connected to remote ", r)
-	go func() {
-		defer client.Close()
-		defer conn.Close()
-		clientbuf := make([]byte, bufSize)
-		io.CopyBuffer(client, conn, clientbuf)
-	}()
-	go func() {
-		defer client.Close()
-		defer conn.Close()
-		serverbuf := make([]byte, bufSize)
-		io.CopyBuffer(conn, client, serverbuf)
-	}()
+
 }
 func main() {
 	flag.StringVar(&l, "l", "", "listen host:port")
