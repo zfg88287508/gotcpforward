@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 )
 
+var bufSize = 8 * 1024
 var (
 	l string
 	r string
 )
+
 
 func handler(conn net.Conn, r string) {
 	client, err := net.Dial("tcp", r)
@@ -22,13 +25,13 @@ func handler(conn net.Conn, r string) {
 	go func() {
 		defer client.Close()
 		defer conn.Close()
-		clientbuf := make([]byte, 512*1024)
+		clientbuf := make([]byte, bufSize)
 		io.CopyBuffer(client, conn, clientbuf)
 	}()
 	go func() {
 		defer client.Close()
 		defer conn.Close()
-		serverbuf := make([]byte, 512*1024)
+		serverbuf := make([]byte, bufSize)
 		io.CopyBuffer(conn, client, serverbuf)
 	}()
 }
@@ -36,8 +39,16 @@ func main() {
 	flag.StringVar(&l, "l", "", "listen host:port")
 	flag.StringVar(&r, "r", "", "remote host:port")
 	flag.Parse()
-	fmt.Println(l)
-	fmt.Println(r)
+	if len(l) <= 0 {
+		flag.PrintDefaults();
+		os.Exit(-1)
+	}
+	if len(r) <= 0 {
+		flag.PrintDefaults()
+		os.Exit(-1)
+	}
+	fmt.Println("Listen on:", l)
+	fmt.Println("Forward request to:", r)
 	listener, err := net.Listen("tcp", l)
 	if err != nil {
 		fmt.Println("Failed to listen on ", l, err)
