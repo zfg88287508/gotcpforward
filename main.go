@@ -21,7 +21,7 @@ func handler(conn net.Conn, r string) {
 		fmt.Println("Dial remote failed", err)
 		return
 	}
-	fmt.Println("Connected to remote ", r)
+	fmt.Println("To: Connected to remote ", r)
 	go func() {
 		defer client.Close()
 		defer conn.Close()
@@ -60,7 +60,7 @@ func main() {
 			fmt.Println("Failed to accept listener. ", err)
 			return
 		}
-		fmt.Println("Accepted connection")
+		fmt.Println("From: Accepted connection: ", conn.RemoteAddr().String())
 		go handler(conn, r)
 	}
 }
