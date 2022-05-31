@@ -1,3 +1,5 @@
 gotcpforward
 .idea/
 *.iml
+
+dist/
