@@ -3,3 +3,4 @@ gotcpforward
 *.iml
 
 dist/
+/gotcpforward.exe

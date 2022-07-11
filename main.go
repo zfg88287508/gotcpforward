@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"time"
+
+	"github.com/infobsmi/bsmi-go/idle_conn"
 )
 
 var (
@@ -15,24 +17,6 @@ var (
 	DialTimeout = 2 * time.Second
 	IdleTimeout = 2 * time.Minute
 )
-
-type IdleTimeoutConn struct {
-	Conn net.Conn
-}
-
-func (self IdleTimeoutConn) Read(buf []byte) (int, error) {
-	go self.UpdateIdleTime(self.Conn, time.Now().Add(IdleTimeout))
-	return self.Conn.Read(buf)
-}
-
-func (self IdleTimeoutConn) UpdateIdleTime(c net.Conn, t time.Time) {
-	_ = c.SetDeadline(t)
-}
-
-func (self IdleTimeoutConn) Write(buf []byte) (int, error) {
-	go self.UpdateIdleTime(self.Conn, time.Now().Add(IdleTimeout))
-	return self.Conn.Write(buf)
-}
 
 func handler(conn net.Conn, r string) {
 	client, err := net.DialTimeout("tcp", r, DialTimeout)
@@ -43,10 +27,10 @@ func handler(conn net.Conn, r string) {
 	}
 	fmt.Println("To: Connected to remote ", r)
 
-	idleCbw := IdleTimeoutConn{
+	idleCbw := &idle_conn.IdleConn[net.Conn]{
 		Conn: conn,
 	}
-	idleCbr := IdleTimeoutConn{
+	idleCbr := &idle_conn.IdleConn[net.Conn]{
 		Conn: client,
 	}
 
