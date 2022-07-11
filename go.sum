@@ -2,3 +2,5 @@ github.com/infobsmi/bsmi-go v1.1.0 h1:U39MKUZAywuDkiKFDaIBtdNNGvCuqH8lX2JkQOSyGf
 github.com/infobsmi/bsmi-go v1.1.0/go.mod h1:zO48mGrcfnIklj0HgbCy8SN+fETp8PLCvenunKU0iO0=
 github.com/infobsmi/bsmi-go v1.2.0 h1:f6o41MgI9diFQs9pp74SW6R3YaVb/nYJNi4fxTgCfIQ=
 github.com/infobsmi/bsmi-go v1.2.0/go.mod h1:zO48mGrcfnIklj0HgbCy8SN+fETp8PLCvenunKU0iO0=
+github.com/infobsmi/bsmi-go v1.3.0 h1:Fb4D8fw6vVVOY/l7Iv6SuIGdfHh45pSQmWDx+B4gssg=
+github.com/infobsmi/bsmi-go v1.3.0/go.mod h1:zO48mGrcfnIklj0HgbCy8SN+fETp8PLCvenunKU0iO0=
