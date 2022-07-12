@@ -16,12 +16,16 @@ var (
 	l           string
 	r           string
 	DialTimeout = 2 * time.Second
-	IdleTimeout = 2 * time.Minute
+	IdleTimeout = 120 * time.Second
 	ap          *ants.Pool
 )
 
 func handler(conn net.Conn, r string) {
-	client, err := net.DialTimeout("tcp", r, DialTimeout)
+	dialer := &net.Dialer{
+		Timeout:   DialTimeout,
+		KeepAlive: IdleTimeout,
+	}
+	client, err := dialer.Dial("tcp", r)
 	if err != nil {
 		fmt.Println("Dial remote failed", err)
 
