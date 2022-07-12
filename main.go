@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/infobsmi/bsmi-go/idle_conn"
+	"github.com/panjf2000/ants/v2"
 )
 
 var (
@@ -34,21 +35,17 @@ func handler(conn net.Conn, r string) {
 		Conn: client,
 	}
 
-	donec := make(chan bool, 2)
-	go copySync(idleCbw, idleCbr, donec)
-	go copySync(idleCbr, idleCbw, donec)
-	<-donec
-	<-donec
+	ants.Submit(func() { copySync(idleCbw, idleCbr) })
+	ants.Submit(func() { copySync(idleCbr, idleCbw) })
 
 }
 
-func copySync(w io.Writer, r io.Reader, donec chan<- bool) {
+func copySync(w io.Writer, r io.Reader) {
 	if _, err := io.Copy(w, r); err != nil && err != io.EOF {
 		fmt.Printf(" failed to copy : %v\n", err)
 	}
 
 	fmt.Printf(" finished copying\n")
-	donec <- true
 }
 func main() {
 	flag.StringVar(&l, "l", "", "listen host:port")
@@ -71,6 +68,7 @@ func main() {
 		fmt.Println("Failed to listen on ", l, err)
 		return
 	}
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -78,6 +76,7 @@ func main() {
 			return
 		}
 		fmt.Println("From: Accepted connection: ", conn.RemoteAddr().String())
-		go handler(conn, r)
+		//go handler(conn, r)
+		ants.Submit(func() { handler(conn, r) })
 	}
 }

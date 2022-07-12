@@ -4,3 +4,5 @@ github.com/infobsmi/bsmi-go v1.2.0 h1:f6o41MgI9diFQs9pp74SW6R3YaVb/nYJNi4fxTgCfI
 github.com/infobsmi/bsmi-go v1.2.0/go.mod h1:zO48mGrcfnIklj0HgbCy8SN+fETp8PLCvenunKU0iO0=
 github.com/infobsmi/bsmi-go v1.3.0 h1:Fb4D8fw6vVVOY/l7Iv6SuIGdfHh45pSQmWDx+B4gssg=
 github.com/infobsmi/bsmi-go v1.3.0/go.mod h1:zO48mGrcfnIklj0HgbCy8SN+fETp8PLCvenunKU0iO0=
+github.com/panjf2000/ants/v2 v2.5.0 h1:1rWGWSnxCsQBga+nQbA4/iY6VMeNoOIAM0ZWh9u3q2Q=
+github.com/panjf2000/ants/v2 v2.5.0/go.mod h1:cU93usDlihJZ5CfRGNDYsiBYvoilLvBF5Qp/BT2GNRE=
