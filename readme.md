@@ -5,6 +5,13 @@ Buy me a cup of coffee for $3
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M54KKIF)
 
 This application can forward tcp connection to upstream.
+
+I use it to forward traffic to my kubernetes .
+
+I use linux systemd to manage the tcp forward.
+
+User request  => gotcpforward  =>   my http service api hosted inside k8s
+
 ## build
 
 ```
@@ -31,7 +38,7 @@ Example use, forward local port to remote server port
 ## License
 
 ```
-    Copyright (C) 2000-2021 cnmade
+    Copyright (C) 2000-2022 cnmade
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
