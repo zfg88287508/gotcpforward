@@ -16,7 +16,7 @@ var (
 	l           string
 	r           string
 	DialTimeout = 2 * time.Second
-	IdleTimeout = 120 * time.Second
+	IdleTimeout = 20 * time.Second
 	ap          *ants.Pool
 )
 
@@ -33,18 +33,18 @@ func handler(conn net.Conn, r string) {
 	}
 	fmt.Println("To: Connected to remote ", r)
 
-	idleCbw := &idle_conn.IdleConn[net.Conn]{
-		Conn: conn,
-	}
-	idleCbr := &idle_conn.IdleConn[net.Conn]{
-		Conn: client,
-	}
+	idleCbw := idle_conn.NewIdleConnWithIdleTimeOut(conn, IdleTimeout)
+	idleCbr := idle_conn.NewIdleConnWithIdleTimeOut(client, IdleTimeout)
 	doneC := make(chan bool, 2)
 	_ = ap.Submit(func() { copySync(idleCbw, idleCbr, doneC) })
 	_ = ap.Submit(func() { copySync(idleCbr, idleCbw, doneC) })
 	<-doneC
 	<-doneC
 	fmt.Println(" finish copy")
+	if doneC != nil {
+		close(doneC)
+		doneC = nil
+	}
 	if conn != nil {
 		defer conn.Close()
 	}
@@ -76,7 +76,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	ap, _ = ants.NewPool(2000)
+	ap, _ = ants.NewPool(2000, ants.WithNonblocking(true))
 
 	for i := 0; i < 20; i++ {
 		tp := i
