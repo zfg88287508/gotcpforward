@@ -1,5 +1,15 @@
 # Go tcp forward
 
+大家不要被这个简单的名字糊弄了。什么tcpforward, 它还是一个威力强大的连接池子。
+因为驱动tcp转发的机制，是基于连接池的。
+
+因为是tcp协议通吃，所以只要是基于tcp的应用，比如postgres数据库，mysql数据库，redis数据库，等等各种tcp协议的应用，甚至可以是一个什么tcp游戏服务器，http协议服务器。
+所有的只要是基于tcp的。它都能处理。
+
+连接池，默认不开启。你可以手动加参数开启。
+
+高级版有更多特性。【保活，主动链接，连接池动态扩容缩容，分布式等等】
+
 Buy me a cup of coffee for $3
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M54KKIF)
