@@ -12,7 +12,12 @@
 
 高级版有更多特性。【保活，主动链接，连接池动态扩容缩容，分布式等等】
 
+## 支持作者
+
+
 Buy me a cup of coffee for $3
+
+买一杯咖啡，请作者只需要$3 美元
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M54KKIF)
 
@@ -23,6 +28,7 @@ I use it to forward traffic to my kubernetes .
 I use linux systemd to manage the tcp forward.
 
 User request  => gotcpforward  =>   my http service api hosted inside k8s
+
 
 ## build
 
