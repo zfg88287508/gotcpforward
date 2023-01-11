@@ -6,18 +6,15 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 	"time"
-
-	"github.com/infobsmi/bsmi-go/idle_conn"
-	"github.com/panjf2000/ants/v2"
 )
 
 var (
 	l           string
 	r           string
-	DialTimeout = 2 * time.Second
+	DialTimeout = 3 * time.Second
 	IdleTimeout = 20 * time.Second
-	ap          *ants.Pool
 )
 
 func handler(conn net.Conn, r string) {
@@ -33,18 +30,24 @@ func handler(conn net.Conn, r string) {
 	}
 	fmt.Println("To: Connected to remote ", r)
 
-	idleCbw := idle_conn.NewIdleConnWithIdleTimeOut(conn, IdleTimeout)
-	idleCbr := idle_conn.NewIdleConnWithIdleTimeOut(client, IdleTimeout)
-	doneC := make(chan bool, 2)
-	_ = ap.Submit(func() { copySync(idleCbw, idleCbr, doneC) })
-	_ = ap.Submit(func() { copySync(idleCbr, idleCbw, doneC) })
-	<-doneC
-	<-doneC
-	fmt.Println(" finish copy")
-	if doneC != nil {
-		close(doneC)
-		doneC = nil
+	copySync := func(w io.Writer, r io.Reader, wg *sync.WaitGroup) {
+		defer wg.Done()
+		if _, err := io.Copy(w, r); err != nil && err != io.EOF {
+			fmt.Printf("failed to copy  tunnel: %v\n", err)
+		}
+
+		fmt.Printf(" finished copying\n")
 	}
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	go copySync(conn, client, wg)
+	go copySync(client, conn, wg)
+
+	wg.Wait()
+
+	fmt.Println(" finish copy")
+
 	if conn != nil {
 		defer conn.Close()
 	}
@@ -54,15 +57,6 @@ func handler(conn net.Conn, r string) {
 	fmt.Println(" close connections")
 }
 
-func copySync(w io.Writer, r io.Reader, doneC chan<- bool) {
-	if _, err := io.Copy(w, r); err != nil && err != io.EOF {
-		fmt.Printf(" failed to copy : %v\n", err)
-	}
-
-	fmt.Printf(" finished copying\n")
-	doneC <- true
-
-}
 func main() {
 	flag.StringVar(&l, "l", "", "listen host:port")
 	flag.StringVar(&r, "r", "", "remote host:port")
@@ -76,14 +70,6 @@ func main() {
 		os.Exit(-1)
 	}
 
-	ap, _ = ants.NewPool(2000, ants.WithNonblocking(true))
-
-	for i := 0; i < 20; i++ {
-		tp := i
-		_ = ap.Submit(func() {
-			fmt.Printf("预热antsPool: %d\n ", tp)
-		})
-	}
 	fmt.Println("Listen on:", l)
 	fmt.Println("Forward request to:", r)
 	listener, err := net.Listen("tcp", l)
@@ -102,6 +88,6 @@ func main() {
 		}
 		fmt.Println("From: Accepted connection: ", conn.RemoteAddr().String())
 		//go handler(conn, r)
-		_ = ap.Submit(func() { handler(conn, r) })
+		go handler(conn, r)
 	}
 }
