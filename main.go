@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"github.com/gotcpforward/gotcpforward/signal"
 	"io"
 	"net"
 	"os"
@@ -15,8 +17,42 @@ var (
 	r           string
 	DialTimeout = 3 * time.Second
 	IdleTimeout = 20 * time.Second
+
+	DefaultProxyIdleTimeout = 45 * time.Second
 )
 
+type IdleTimeoutConn struct {
+	timer signal.ActivityUpdater
+	Conn  net.Conn
+}
+
+func NewIdleTimeoutConn(conn net.Conn, timer signal.ActivityUpdater) *IdleTimeoutConn {
+	c := &IdleTimeoutConn{
+		Conn:  conn,
+		timer: timer,
+	}
+	return c
+}
+
+func (ic *IdleTimeoutConn) Read(buf []byte) (int, error) {
+	go ic.UpdateIdleTime()
+	return ic.Conn.Read(buf)
+}
+
+func (ic *IdleTimeoutConn) UpdateIdleTime() {
+	ic.timer.Update()
+}
+
+func (ic *IdleTimeoutConn) Write(buf []byte) (int, error) {
+	go ic.UpdateIdleTime()
+	return ic.Conn.Write(buf)
+}
+
+func (c *IdleTimeoutConn) Close() {
+	if c.Conn != nil {
+		c.Conn.Close()
+	}
+}
 func handler(conn net.Conn, r string) {
 	dialer := &net.Dialer{
 		Timeout:   DialTimeout,
@@ -40,9 +76,21 @@ func handler(conn net.Conn, r string) {
 	}
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
+	connCtx, cancel := context.WithCancel(context.Background())
+	cancelFunc := func() {
+		fmt.Printf("链接已经超时，准备关闭链接\n")
+		cancel()
+		conn.Close()
+		client.Close()
+	}
 
-	go copySync(conn, client, wg)
-	go copySync(client, conn, wg)
+	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout)
+	idleCbw := NewIdleTimeoutConn(conn, timer)
+
+	idleCbr := NewIdleTimeoutConn(client, timer)
+
+	go copySync(idleCbw, idleCbr, wg)
+	go copySync(idleCbr, idleCbw, wg)
 
 	wg.Wait()
 
