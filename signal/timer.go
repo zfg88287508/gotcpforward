@@ -2,7 +2,7 @@ package signal
 
 import (
 	"context"
-	"github.com/gohttpproxy/gohttpproxy/martian/log"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -60,7 +60,7 @@ func (t *ActivityTimer) SetTimeout(timeout time.Duration) {
 	go func() {
 		for {
 			if t.timerClosed {
-				log.Infof("ActivityTimer finish and close")
+				fmt.Printf("ActivityTimer finish and close\n")
 				break
 			}
 			time.Sleep(timeout)
