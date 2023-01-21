@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -13,27 +14,22 @@ type ActivityUpdater interface {
 
 type ActivityTimer struct {
 	sync.RWMutex
-	updated     chan struct{}
+	updated     atomic.Int64
 	onTimeout   func()
 	timerClosed bool
 	updateLock  sync.Mutex
+	tTimeout    time.Duration
 }
 
 func (t *ActivityTimer) Update() {
-	select {
-	case t.updated <- struct{}{}:
-		break
-	case <-time.After(1 * time.Second):
-		//log.Infof("等待1s还没有获取锁，本次跳过更新")
-		break
-
-	}
+	tsn := time.Now().Add(t.tTimeout).Unix()
+	fmt.Printf("update timer for ActivityTimer:%v \n", tsn)
+	go t.updated.Swap(tsn)
 }
 
 func (t *ActivityTimer) check() {
-	select {
-	case <-t.updated:
-	default:
+	ttn := t.updated.Load()
+	if ttn <= 0 || ttn < time.Now().Unix() {
 		t.finish()
 	}
 }
@@ -71,7 +67,7 @@ func (t *ActivityTimer) SetTimeout(timeout time.Duration) {
 
 func CancelAfterInactivity(ctx context.Context, cancel func(), timeout time.Duration) *ActivityTimer {
 	timer := &ActivityTimer{
-		updated:   make(chan struct{}, 1),
+		updated:   atomic.Int64{},
 		onTimeout: cancel,
 	}
 	timer.SetTimeout(timeout)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/gotcpforward/gotcpforward/ioplus"
 	"github.com/gotcpforward/gotcpforward/signal"
 	"io"
 	"net"
@@ -21,38 +22,6 @@ var (
 	DefaultProxyIdleTimeout = 45 * time.Second
 )
 
-type IdleTimeoutConn struct {
-	timer signal.ActivityUpdater
-	Conn  net.Conn
-}
-
-func NewIdleTimeoutConn(conn net.Conn, timer signal.ActivityUpdater) *IdleTimeoutConn {
-	c := &IdleTimeoutConn{
-		Conn:  conn,
-		timer: timer,
-	}
-	return c
-}
-
-func (ic *IdleTimeoutConn) Read(buf []byte) (int, error) {
-	go ic.UpdateIdleTime()
-	return ic.Conn.Read(buf)
-}
-
-func (ic *IdleTimeoutConn) UpdateIdleTime() {
-	ic.timer.Update()
-}
-
-func (ic *IdleTimeoutConn) Write(buf []byte) (int, error) {
-	go ic.UpdateIdleTime()
-	return ic.Conn.Write(buf)
-}
-
-func (c *IdleTimeoutConn) Close() {
-	if c.Conn != nil {
-		c.Conn.Close()
-	}
-}
 func handler(conn net.Conn, r string) {
 	dialer := &net.Dialer{
 		Timeout:   DialTimeout,
@@ -66,9 +35,9 @@ func handler(conn net.Conn, r string) {
 	}
 	fmt.Println("To: Connected to remote ", r)
 
-	copySync := func(w io.Writer, r io.Reader, wg *sync.WaitGroup) {
+	copySync := func(w io.Writer, r io.Reader, wg *sync.WaitGroup, fn func()) {
 		defer wg.Done()
-		if _, err := io.Copy(w, r); err != nil && err != io.EOF {
+		if _, err := ioplus.Copy(w, r, fn); err != nil && err != io.EOF {
 			fmt.Printf("failed to copy  tunnel: %v\n", err)
 		}
 
@@ -85,12 +54,9 @@ func handler(conn net.Conn, r string) {
 	}
 
 	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout)
-	idleCbw := NewIdleTimeoutConn(conn, timer)
 
-	idleCbr := NewIdleTimeoutConn(client, timer)
-
-	go copySync(idleCbw, idleCbr, wg)
-	go copySync(idleCbr, idleCbw, wg)
+	go copySync(conn, client, wg, timer.Update)
+	go copySync(client, conn, wg, timer.Update)
 
 	wg.Wait()
 
