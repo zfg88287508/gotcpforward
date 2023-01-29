@@ -19,7 +19,7 @@ var (
 	DialTimeout = 3 * time.Second
 	IdleTimeout = 20 * time.Second
 
-	DefaultProxyIdleTimeout = 45 * time.Second
+	DefaultProxyIdleTimeout = 180 * time.Second
 )
 
 func handler(conn net.Conn, r string) {
@@ -49,8 +49,8 @@ func handler(conn net.Conn, r string) {
 	cancelFunc := func() {
 		fmt.Printf("链接已经超时，准备关闭链接\n")
 		cancel()
-		conn.Close()
-		client.Close()
+		conn.SetDeadline(time.Now())
+		client.SetDeadline(time.Now())
 	}
 
 	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout)
