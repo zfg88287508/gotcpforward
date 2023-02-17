@@ -42,6 +42,10 @@ func main() {
 	undoLog := zap.RedirectStdLog(logger)
 	defer undoLog()
 
+	yamuxConfig := yamux.DefaultConfig()
+	//设置日志
+	yamuxConfig.LogOutput = log.Writer()
+
 	atom.SetLevel(zap.DebugLevel)
 
 	sugar = logger.Sugar()
@@ -66,10 +70,6 @@ func main() {
 		sugar.Infof("Failed to listen on %v, %v", l, err)
 		return
 	}
-
-	yamuxConfig := yamux.DefaultConfig()
-	//设置日志
-	yamuxConfig.Logger = log.Default()
 
 	var pSession *yamux.Session
 
