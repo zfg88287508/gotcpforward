@@ -23,7 +23,7 @@ var (
 	DialTimeout = 3 * time.Second
 	IdleTimeout = 20 * time.Second
 
-	DefaultProxyIdleTimeout = 180 * time.Second
+	DefaultProxyIdleTimeout = 30 * time.Second
 )
 
 func main() {
@@ -143,6 +143,8 @@ func handler(inboundConn net.Conn, outboundConn net.Conn) {
 	cancelFunc := func() {
 		sugar.Infof("链接已经超时，准备关闭链接\n")
 		cancel()
+		inboundConn.Close()
+		outboundConn.Close()
 	}
 
 	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout, sugar)

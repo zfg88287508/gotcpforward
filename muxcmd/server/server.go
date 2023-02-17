@@ -23,7 +23,7 @@ var (
 	DialTimeout = 3 * time.Second
 	IdleTimeout = 20 * time.Second
 
-	DefaultProxyIdleTimeout = 180 * time.Second
+	DefaultProxyIdleTimeout = 30 * time.Second
 )
 
 func main() {
@@ -72,6 +72,11 @@ func main() {
 		return
 	}
 
+	dialer := &net.Dialer{
+		Timeout:   DialTimeout,
+		KeepAlive: IdleTimeout,
+	}
+
 	for {
 		rawConn, err := listener.Accept()
 		if err != nil {
@@ -87,11 +92,6 @@ func main() {
 		if err != nil {
 			sugar.Infof(" failed to create yamux serer: err : %v", err)
 			continue
-		}
-
-		dialer := &net.Dialer{
-			Timeout:   DialTimeout,
-			KeepAlive: IdleTimeout,
 		}
 
 		// Open a new stream
@@ -134,6 +134,8 @@ func handler(inboundConn net.Conn, outboundConn net.Conn) {
 	cancelFunc := func() {
 		sugar.Infof("链接已经超时，准备关闭链接\n")
 		cancel()
+		inboundConn.Close()
+		outboundConn.Close()
 	}
 
 	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout, sugar)
