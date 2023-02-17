@@ -4,3 +4,5 @@ gotcpforward
 
 dist/
 /gotcpforward.exe
+muxcmd/client/client
+muxcmd/server/server
