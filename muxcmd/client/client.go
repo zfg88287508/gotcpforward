@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"io"
+	"log"
 	"net"
 	"os"
 	"sync"
@@ -37,6 +38,9 @@ func main() {
 		atom,
 	))
 	defer logger.Sync()
+
+	undoLog := zap.RedirectStdLog(logger)
+	defer undoLog()
 
 	atom.SetLevel(zap.DebugLevel)
 
@@ -74,7 +78,12 @@ func main() {
 		return
 	}
 	sugar.Infof("To: Connected to remote %v", r)
-	session, err := yamux.Client(outboundConn, nil)
+
+	yamuxConfig := yamux.DefaultConfig()
+	//设置日志
+	yamuxConfig.Logger = log.Default()
+
+	session, err := yamux.Client(outboundConn, yamuxConfig)
 	if err != nil {
 
 		sugar.Infof("To: Failed to Connected to remote %v", r)

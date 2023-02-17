@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"io"
+	"log"
 	"net"
 	"os"
 	"sync"
@@ -38,6 +39,9 @@ func main() {
 		atom,
 	))
 	defer logger.Sync()
+
+	undoLog := zap.RedirectStdLog(logger)
+	defer undoLog()
 
 	atom.SetLevel(zap.DebugLevel)
 
@@ -74,7 +78,12 @@ func main() {
 
 		// Setup server side of yamux
 		sugar.Infof("creating server session")
-		session, err := yamux.Server(rawConn, nil)
+
+		yamuxConfig := yamux.DefaultConfig()
+		//设置日志
+		yamuxConfig.Logger = log.Default()
+
+		session, err := yamux.Server(rawConn, yamuxConfig)
 		if err != nil {
 			sugar.Infof(" failed to create yamux serer")
 			continue
