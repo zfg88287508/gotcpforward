@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"github.com/gotcpforward/gotcpforward/common"
 	"github.com/gotcpforward/gotcpforward/signal"
 	"github.com/hashicorp/yamux"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"io"
-	"log"
 	"net"
 	"os"
 	"sync"
@@ -16,6 +16,7 @@ import (
 )
 
 var (
+	sugar       *zap.SugaredLogger
 	l           string
 	r           string
 	DialTimeout = 3 * time.Second
@@ -24,47 +25,23 @@ var (
 	DefaultProxyIdleTimeout = 180 * time.Second
 )
 
-func handler(inboundConn net.Conn, outboundConn net.Conn) {
-
-	copySync := func(w io.Writer, r io.Reader, wg *sync.WaitGroup) {
-		defer wg.Done()
-		if _, err := io.Copy(w, r); err != nil && err != io.EOF {
-			fmt.Printf("failed to copy  tunnel: %v\n", err)
-		}
-
-		fmt.Printf(" finished copying\n")
-	}
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
-	connCtx, cancel := context.WithCancel(context.Background())
-	cancelFunc := func() {
-		fmt.Printf("链接已经超时，准备关闭链接\n")
-		cancel()
-	}
-
-	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout)
-
-	idleInboundConn := common.NewIdleTimeoutConnV3(inboundConn, timer.Update)
-
-	idleOutboundConn := common.NewIdleTimeoutConnV3(outboundConn, timer.Update)
-
-	go copySync(idleInboundConn, idleOutboundConn, wg)
-	go copySync(idleOutboundConn, idleInboundConn, wg)
-
-	wg.Wait()
-
-	fmt.Println(" finish copy")
-
-	if inboundConn != nil {
-		defer inboundConn.Close()
-	}
-	if outboundConn != nil {
-		defer outboundConn.Close()
-	}
-	fmt.Println(" close connections")
-}
-
 func main() {
+	atom := zap.NewAtomicLevel()
+
+	// To keep the example deterministic, disable timestamps in the output.
+	encoderCfg := zap.NewProductionEncoderConfig()
+	encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	logger := zap.New(zapcore.NewCore(
+		zapcore.NewConsoleEncoder(encoderCfg),
+		zapcore.Lock(os.Stdout),
+		atom,
+	))
+	defer logger.Sync()
+
+	atom.SetLevel(zap.DebugLevel)
+
+	sugar = logger.Sugar()
+
 	flag.StringVar(&l, "l", "", "listen host:port")
 	flag.StringVar(&r, "r", "", "remote host:port")
 	flag.Parse()
@@ -77,13 +54,12 @@ func main() {
 		os.Exit(-1)
 	}
 
-	fmt.Println("Listen on:", l)
-	fmt.Println("Forward request to:", r)
+	sugar.Infof("Listen on: %v", l)
+	sugar.Infof("Forward request to: %v", r)
 	listener, err := net.Listen("tcp", l)
 
-	fmt.Println("Dial timeout: ", DialTimeout)
 	if err != nil {
-		fmt.Println("Failed to listen on ", l, err)
+		sugar.Infof("Failed to listen on %v, %v", l, err)
 		return
 	}
 
@@ -93,15 +69,15 @@ func main() {
 	}
 	outboundConn, err := dialer.Dial("tcp", r)
 	if err != nil {
-		fmt.Println("Dial remote failed", err)
+		sugar.Infof("Dial remote failed %v", err)
 
 		return
 	}
-	fmt.Println("To: Connected to remote ", r)
+	sugar.Infof("To: Connected to remote %v", r)
 	session, err := yamux.Client(outboundConn, nil)
 	if err != nil {
 
-		fmt.Println("To: Failed to Connected to remote ", r)
+		sugar.Infof("To: Failed to Connected to remote %v", r)
 		return
 	}
 
@@ -109,19 +85,59 @@ func main() {
 	for {
 		inboundConn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Failed to accept listener. ", err)
-			return
+			sugar.Infof("Failed to accept listener. %v", err)
+			continue
 		}
-		fmt.Println("From: Accepted connection: ", inboundConn.RemoteAddr().String())
+		sugar.Infof("From: Accepted connection: %v ", inboundConn.RemoteAddr().String())
 		//go handler(conn, r)
 
-		log.Println("opening stream")
+		sugar.Infof("opening stream")
 		stream, err := session.Open()
 		if err != nil {
-			fmt.Println("Open session failed, stream conn failed")
-			return
+			sugar.Infof("Open session failed, stream conn failed")
+			continue
 		}
 
 		go handler(inboundConn, stream)
 	}
+}
+
+func handler(inboundConn net.Conn, outboundConn net.Conn) {
+
+	copySync := func(w io.Writer, r io.Reader, wg *sync.WaitGroup) {
+		defer wg.Done()
+		if _, err := io.Copy(w, r); err != nil && err != io.EOF {
+			sugar.Infof("failed to copy  tunnel: %v\n", err)
+		}
+
+		sugar.Infof(" finished copying\n")
+	}
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+	connCtx, cancel := context.WithCancel(context.Background())
+	cancelFunc := func() {
+		sugar.Infof("链接已经超时，准备关闭链接\n")
+		cancel()
+	}
+
+	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout, sugar)
+
+	idleInboundConn := common.NewIdleTimeoutConnV3(inboundConn, timer.Update, sugar)
+
+	idleOutboundConn := common.NewIdleTimeoutConnV3(outboundConn, timer.Update, sugar)
+
+	go copySync(idleInboundConn, idleOutboundConn, wg)
+	go copySync(idleOutboundConn, idleInboundConn, wg)
+
+	wg.Wait()
+
+	sugar.Infof(" finish copy")
+
+	if inboundConn != nil {
+		defer inboundConn.Close()
+	}
+	if outboundConn != nil {
+		defer outboundConn.Close()
+	}
+	sugar.Infof(" close connections")
 }

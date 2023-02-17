@@ -1,6 +1,7 @@
 package common
 
 import (
+	"go.uber.org/zap"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -12,12 +13,14 @@ type IdleTimeoutConnV3 struct {
 	atomic.Int64
 	update func()
 	Conn   net.Conn
+	logger *zap.SugaredLogger
 }
 
-func NewIdleTimeoutConnV3(conn net.Conn, fn func()) *IdleTimeoutConnV3 {
+func NewIdleTimeoutConnV3(conn net.Conn, fn func(), logger *zap.SugaredLogger) *IdleTimeoutConnV3 {
 	c := &IdleTimeoutConnV3{
 		Conn:   conn,
 		update: fn,
+		logger: logger,
 	}
 	return c
 }

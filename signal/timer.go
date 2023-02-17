@@ -2,7 +2,7 @@ package signal
 
 import (
 	"context"
-	"fmt"
+	"go.uber.org/zap"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,11 +19,12 @@ type ActivityTimer struct {
 	timerClosed bool
 	updateLock  sync.Mutex
 	tTimeout    time.Duration
+	logger      *zap.SugaredLogger
 }
 
 func (t *ActivityTimer) Update() {
 	tsn := time.Now().Add(t.tTimeout).Unix()
-	fmt.Printf("update timer for ActivityTimer:%v \n", tsn)
+	t.logger.Infof("update timer for ActivityTimer:%v \n", tsn)
 	go t.updated.Swap(tsn)
 }
 
@@ -56,7 +57,7 @@ func (t *ActivityTimer) SetTimeout(timeout time.Duration) {
 	go func() {
 		for {
 			if t.timerClosed {
-				fmt.Printf("ActivityTimer finish and close\n")
+				t.logger.Infof("ActivityTimer finish and close\n")
 				break
 			}
 			time.Sleep(timeout)
@@ -65,10 +66,11 @@ func (t *ActivityTimer) SetTimeout(timeout time.Duration) {
 	}()
 }
 
-func CancelAfterInactivity(ctx context.Context, cancel func(), timeout time.Duration) *ActivityTimer {
+func CancelAfterInactivity(ctx context.Context, cancel func(), timeout time.Duration, logger *zap.SugaredLogger) *ActivityTimer {
 	timer := &ActivityTimer{
 		updated:   atomic.Int64{},
 		onTimeout: cancel,
+		logger:    logger,
 	}
 	timer.SetTimeout(timeout)
 	return timer
