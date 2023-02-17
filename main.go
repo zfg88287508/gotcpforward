@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/gotcpforward/gotcpforward/ioplus"
+	"github.com/gotcpforward/gotcpforward/common"
 	"github.com/gotcpforward/gotcpforward/signal"
 	"io"
 	"net"
@@ -35,9 +35,9 @@ func handler(conn net.Conn, r string) {
 	}
 	fmt.Println("To: Connected to remote ", r)
 
-	copySync := func(w io.Writer, r io.Reader, wg *sync.WaitGroup, fn func()) {
+	copySync := func(w io.Writer, r io.Reader, wg *sync.WaitGroup) {
 		defer wg.Done()
-		if _, err := ioplus.Copy(w, r, fn); err != nil && err != io.EOF {
+		if _, err := io.Copy(w, r); err != nil && err != io.EOF {
 			fmt.Printf("failed to copy  tunnel: %v\n", err)
 		}
 
@@ -55,8 +55,11 @@ func handler(conn net.Conn, r string) {
 
 	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout)
 
-	go copySync(conn, client, wg, timer.Update)
-	go copySync(client, conn, wg, timer.Update)
+	inConn := common.NewIdleTimeoutConnV3(conn, timer.Update)
+	outConn := common.NewIdleTimeoutConnV3(client, timer.Update)
+
+	go copySync(inConn, outConn, wg)
+	go copySync(outConn, inConn, wg)
 
 	wg.Wait()
 
