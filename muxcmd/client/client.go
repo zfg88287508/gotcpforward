@@ -67,48 +67,64 @@ func main() {
 		return
 	}
 
-	dialer := &net.Dialer{
-		Timeout:   DialTimeout,
-		KeepAlive: IdleTimeout,
-	}
-	outboundConn, err := dialer.Dial("tcp", r)
-	if err != nil {
-		sugar.Infof("Dial remote failed %v", err)
-
-		return
-	}
-	sugar.Infof("To: Connected to remote %v", r)
-
 	yamuxConfig := yamux.DefaultConfig()
 	//设置日志
 	yamuxConfig.Logger = log.Default()
 
-	session, err := yamux.Client(outboundConn, yamuxConfig)
-	if err != nil {
-
-		sugar.Infof("To: Failed to Connected to remote %v", r)
-		return
-	}
+	var pSession *yamux.Session
 
 	// Open a new stream
 	for {
 		inboundConn, err := listener.Accept()
+
 		if err != nil {
 			sugar.Infof("Failed to accept listener. %v", err)
 			continue
 		}
+
+		if pSession == nil || pSession.IsClosed() {
+
+			pSession, err = yamux.Client(getOneConn(r), yamuxConfig)
+			if err != nil {
+
+				sugar.Infof("To: Failed to Connected to remote %v, will try again", r)
+				continue
+			}
+
+		}
+
 		sugar.Infof("From: Accepted connection: %v ", inboundConn.RemoteAddr().String())
 		//go handler(conn, r)
 
 		sugar.Infof("opening stream")
-		stream, err := session.Open()
+		stream, err := pSession.Open()
 		if err != nil {
+			pSession.Close()
+
 			sugar.Infof("Open session failed, stream conn failed")
 			continue
 		}
 
 		go handler(inboundConn, stream)
 	}
+}
+
+func getOneConn(s string) io.ReadWriteCloser {
+
+	dialer := &net.Dialer{
+		Timeout:   DialTimeout,
+		KeepAlive: IdleTimeout,
+	}
+
+	outboundConn, err := dialer.Dial("tcp", r)
+	if err != nil {
+		sugar.Infof("Dial remote failed %v", err)
+
+		return nil
+	}
+	sugar.Infof("To: Connected to remote %v", r)
+	return outboundConn
+
 }
 
 func handler(inboundConn net.Conn, outboundConn net.Conn) {
