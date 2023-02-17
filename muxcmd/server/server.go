@@ -85,7 +85,7 @@ func main() {
 
 		session, err := yamux.Server(rawConn, yamuxConfig)
 		if err != nil {
-			sugar.Infof(" failed to create yamux serer")
+			sugar.Infof(" failed to create yamux serer: err : %v", err)
 			continue
 		}
 
