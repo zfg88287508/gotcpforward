@@ -3,13 +3,9 @@ package common
 import (
 	"go.uber.org/zap"
 	"net"
-	"sync"
-	"sync/atomic"
 )
 
 type IdleTimeoutConnV3 struct {
-	sync.Mutex
-	atomic.Int64
 	update  func()
 	Conn    net.Conn
 	logger  *zap.SugaredLogger
