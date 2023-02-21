@@ -78,8 +78,14 @@ func (t *ActivityTimer) SetTimeout(timeout time.Duration) {
 }
 
 func CancelAfterInactivity(ctx context.Context, cancel func(), timeout time.Duration, logger *zap.SugaredLogger) *ActivityTimer {
+	ch := make(chan struct{}, 1)
+	select {
+	case ch <- struct{}{}:
+	default:
+		
+	}
 	timer := &ActivityTimer{
-		updated:   make(chan struct{}, 1),
+		updated:   ch,
 		onTimeout: cancel,
 		logger:    logger,
 	}

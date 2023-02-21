@@ -13,11 +13,17 @@ type IdleTimeoutConnV3 struct {
 }
 
 func NewIdleTimeoutConnV3(conn net.Conn, fn func(), logger *zap.SugaredLogger) *IdleTimeoutConnV3 {
+	ch := make(chan int)
+	select {
+	case ch <- 1:
+	default:
+
+	}
 	c := &IdleTimeoutConnV3{
 		Conn:    conn,
 		update:  fn,
 		logger:  logger,
-		Updated: make(chan int),
+		Updated: ch,
 	}
 	return c
 }
