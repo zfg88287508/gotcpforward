@@ -77,7 +77,7 @@ func main() {
 }
 
 func handler(conn net.Conn, r string) {
-	cm := "handler"
+	cm := "handler@main.go"
 	dialer := &net.Dialer{
 		Timeout:   DialTimeout,
 		KeepAlive: IdleTimeout,
@@ -112,8 +112,11 @@ func handler(conn net.Conn, r string) {
 
 	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout, sugar)
 
-	inConn := common.NewIdleTimeoutConnV3(conn, timer.Update, sugar)
-	outConn := common.NewIdleTimeoutConnV3(client, timer.Update, sugar)
+	updateFunc := func() {
+		timer.Update()
+	}
+	inConn := common.NewIdleTimeoutConnV3(conn, updateFunc, sugar)
+	outConn := common.NewIdleTimeoutConnV3(client, updateFunc, sugar)
 
 	_ = task.Run(context.Background(), func() error {
 		return copySync(inConn, outConn)
