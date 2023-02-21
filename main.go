@@ -5,12 +5,12 @@ import (
 	"flag"
 	"github.com/gotcpforward/gotcpforward/common"
 	"github.com/gotcpforward/gotcpforward/signal"
+	"github.com/gotcpforward/gotcpforward/task"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"io"
 	"net"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -26,6 +26,7 @@ var (
 
 func main() {
 
+	cm := "main"
 	atom := zap.NewAtomicLevel()
 
 	// To keep the example deterministic, disable timestamps in the output.
@@ -54,53 +55,56 @@ func main() {
 		os.Exit(-1)
 	}
 
-	sugar.Infof("Listen on: %v", l)
-	sugar.Infof("Forward request to: %v", r)
+	sugar.Infof(cm+" Listen on: %v", l)
+	sugar.Infof(cm+" Forward request to: %v", r)
 	listener, err := net.Listen("tcp", l)
 
 	if err != nil {
-		sugar.Infof("Failed to listen on %v", l, err)
+		sugar.Infof(cm+" Failed to listen on %v", l, err)
 		return
 	}
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			sugar.Infof("Failed to accept listener. %v", err)
+			sugar.Infof(cm+" Failed to accept listener. %v", err)
 			return
 		}
-		sugar.Infof("From: Accepted connection: %v", conn.RemoteAddr().String())
+		sugar.Infof(cm+"From: Accepted connection: %v", conn.RemoteAddr().String())
 		//go handler(conn, r)
 		go handler(conn, r)
 	}
 }
 
 func handler(conn net.Conn, r string) {
+	cm := "handler"
 	dialer := &net.Dialer{
 		Timeout:   DialTimeout,
 		KeepAlive: IdleTimeout,
 	}
 	client, err := dialer.Dial("tcp", r)
 	if err != nil {
-		sugar.Infof("Dial remote failed %v", err)
+		sugar.Infof(cm+" Dial remote failed %v", err)
 
 		return
 	}
-	sugar.Infof("To: Connected to remote %v", r)
+	sugar.Infof(cm+" To: Connected to remote %v", r)
 
-	copySync := func(w io.Writer, r io.Reader, wg *sync.WaitGroup) {
-		defer wg.Done()
+	copySync := func(w io.Writer, r io.Reader) error {
+
 		if _, err := io.Copy(w, r); err != nil && err != io.EOF {
-			sugar.Infof("failed to copy  tunnel: %v\n", err)
+			sugar.Infof(cm+" failed to copy  tunnel: %v\n", err)
+			return err
 		}
 
-		sugar.Infof(" finished copying\n")
+		sugar.Infof(cm + " finished copying\n")
+		return nil
 	}
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
+
 	connCtx, cancel := context.WithCancel(context.Background())
+
 	cancelFunc := func() {
-		sugar.Infof("链接已经超时，准备关闭链接\n")
+		sugar.Infof(cm + " 链接已经超时，准备关闭链接\n")
 		cancel()
 		conn.SetDeadline(time.Now())
 		client.SetDeadline(time.Now())
@@ -111,12 +115,13 @@ func handler(conn net.Conn, r string) {
 	inConn := common.NewIdleTimeoutConnV3(conn, timer.Update, sugar)
 	outConn := common.NewIdleTimeoutConnV3(client, timer.Update, sugar)
 
-	go copySync(inConn, outConn, wg)
-	go copySync(outConn, inConn, wg)
+	_ = task.Run(context.Background(), func() error {
+		return copySync(inConn, outConn)
+	}, func() error {
+		return copySync(outConn, inConn)
+	})
 
-	wg.Wait()
-
-	sugar.Infof(" finish copy")
+	sugar.Infof(cm + " finish copy")
 
 	if conn != nil {
 		defer conn.Close()
@@ -124,5 +129,5 @@ func handler(conn net.Conn, r string) {
 	if client != nil {
 		defer client.Close()
 	}
-	sugar.Infof(" close connections")
+	sugar.Infof(cm + " close connections")
 }
