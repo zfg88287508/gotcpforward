@@ -2,7 +2,7 @@ package task
 
 import (
 	"context"
-	"github.com/gohttpproxy/gohttpproxy/martian/signal/semaphore"
+	"github.com/gotcpforward/gotcpforward/signal/semaphore"
 )
 
 // OnSuccess executes g() after f() returns nil.
