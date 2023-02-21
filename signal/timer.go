@@ -2,9 +2,9 @@ package signal
 
 import (
 	"context"
+	"github.com/gotcpforward/gotcpforward/task"
 	"go.uber.org/zap"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -14,35 +14,41 @@ type ActivityUpdater interface {
 
 type ActivityTimer struct {
 	sync.RWMutex
-	updated     atomic.Int64
-	onTimeout   func()
-	timerClosed bool
-	updateLock  sync.Mutex
-	tTimeout    time.Duration
-	logger      *zap.SugaredLogger
+	updated   chan struct{}
+	checkTask *task.Periodic
+	onTimeout func()
+	logger    *zap.SugaredLogger
 }
 
 func (t *ActivityTimer) Update() {
-	tsn := time.Now().Add(t.tTimeout).Unix()
-	t.logger.Infof("update timer for ActivityTimer:%v \n", tsn)
-	go t.updated.Swap(tsn)
+	cm := "Update@timer.go"
+	select {
+	case t.updated <- struct{}{}:
+		t.logger.Infof(cm + " update timer for ActivityTimer")
+	default:
+	}
 }
 
-func (t *ActivityTimer) check() {
-	ttn := t.updated.Load()
-	if ttn <= 0 || ttn < time.Now().Unix() {
+func (t *ActivityTimer) check() error {
+	select {
+	case <-t.updated:
+	default:
 		t.finish()
 	}
+	return nil
 }
 
 func (t *ActivityTimer) finish() {
 	t.Lock()
 	defer t.Unlock()
 
-	t.timerClosed = true
 	if t.onTimeout != nil {
 		t.onTimeout()
 		t.onTimeout = nil
+	}
+	if t.checkTask != nil {
+		t.checkTask.Close()
+		t.checkTask = nil
 	}
 }
 
@@ -52,23 +58,28 @@ func (t *ActivityTimer) SetTimeout(timeout time.Duration) {
 		return
 	}
 
-	//过N 秒，执行一次 check
+	checkTask := &task.Periodic{
+		Interval: timeout,
+		Execute:  t.check,
+	}
+
+	t.Lock()
+
+	if t.checkTask != nil {
+		t.checkTask.Close()
+	}
+	t.checkTask = checkTask
+	t.Unlock()
 	t.Update()
-	go func() {
-		for {
-			if t.timerClosed {
-				t.logger.Infof("ActivityTimer finish and close\n")
-				break
-			}
-			time.Sleep(timeout)
-			t.check()
-		}
-	}()
+	err := checkTask.Start()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func CancelAfterInactivity(ctx context.Context, cancel func(), timeout time.Duration, logger *zap.SugaredLogger) *ActivityTimer {
 	timer := &ActivityTimer{
-		updated:   atomic.Int64{},
+		updated:   make(chan struct{}, 1),
 		onTimeout: cancel,
 		logger:    logger,
 	}

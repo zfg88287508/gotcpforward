@@ -23,11 +23,12 @@ func NewIdleTimeoutConnV3(conn net.Conn, fn func(), logger *zap.SugaredLogger) *
 }
 
 func (ic *IdleTimeoutConnV3) Read(buf []byte) (int, error) {
+
+	go ic.UpdateIdleTime()
 	select {
 	case ic.Updated <- 1:
 	default:
 	}
-	go ic.UpdateIdleTime()
 	return ic.Conn.Read(buf)
 }
 
@@ -40,11 +41,11 @@ func (ic *IdleTimeoutConnV3) UpdateIdleTime() {
 }
 
 func (ic *IdleTimeoutConnV3) Write(buf []byte) (int, error) {
+	go ic.UpdateIdleTime()
 	select {
 	case ic.Updated <- 1:
 	default:
 	}
-	go ic.UpdateIdleTime()
 	return ic.Conn.Write(buf)
 }
 
