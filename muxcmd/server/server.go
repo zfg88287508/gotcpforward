@@ -5,6 +5,7 @@ import (
 	"flag"
 	"github.com/gotcpforward/gotcpforward/common"
 	"github.com/gotcpforward/gotcpforward/signal"
+	"github.com/gotcpforward/gotcpforward/task"
 	"github.com/hashicorp/yamux"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -12,7 +13,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -120,22 +120,28 @@ func main() {
 
 func handler(inboundConn net.Conn, outboundConn net.Conn) {
 
-	copySync := func(w io.Writer, r io.Reader, wg *sync.WaitGroup) {
-		defer wg.Done()
+	copySync := func(w io.Writer, r io.Reader) error {
 		if _, err := io.Copy(w, r); err != nil && err != io.EOF {
 			sugar.Infof("failed to copy  tunnel: %v\n", err)
+			return err
 		}
 
 		sugar.Infof(" finished copying\n")
+		return nil
 	}
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
+
 	connCtx, cancel := context.WithCancel(context.Background())
 	cancelFunc := func() {
 		sugar.Infof("链接已经超时，准备关闭链接\n")
 		cancel()
-		inboundConn.Close()
-		outboundConn.Close()
+
+		dlTime := time.Now().Add(IdleTimeout)
+		if inboundConn != nil {
+			inboundConn.SetDeadline(dlTime)
+		}
+		if outboundConn != nil {
+			outboundConn.SetDeadline(dlTime)
+		}
 	}
 
 	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout, sugar)
@@ -144,18 +150,24 @@ func handler(inboundConn net.Conn, outboundConn net.Conn) {
 
 	idleOutboundConn := common.NewIdleTimeoutConnV3(outboundConn, timer.Update, sugar)
 
-	go copySync(idleInboundConn, idleOutboundConn, wg)
-	go copySync(idleOutboundConn, idleInboundConn, wg)
-
-	wg.Wait()
+	_ = task.Run(
+		context.Background(),
+		func() error {
+			return copySync(idleInboundConn, idleOutboundConn)
+		},
+		func() error {
+			return copySync(idleOutboundConn, idleInboundConn)
+		},
+	)
 
 	sugar.Infof(" finish copy")
 
+	dlTime := time.Now().Add(IdleTimeout)
 	if inboundConn != nil {
-		defer inboundConn.Close()
+		inboundConn.SetDeadline(dlTime)
 	}
 	if outboundConn != nil {
-		defer outboundConn.Close()
+		outboundConn.SetDeadline(dlTime)
 	}
 	sugar.Infof(" close connections")
 }

@@ -106,8 +106,14 @@ func handler(conn net.Conn, r string) {
 	cancelFunc := func() {
 		sugar.Infof(cm + " 链接已经超时，准备关闭链接\n")
 		cancel()
-		conn.SetDeadline(time.Now())
-		client.SetDeadline(time.Now())
+
+		dlTime := time.Now().Add(IdleTimeout)
+		if conn != nil {
+			conn.SetDeadline(dlTime)
+		}
+		if client != nil {
+			client.SetDeadline(dlTime)
+		}
 	}
 
 	timer := signal.CancelAfterInactivity(connCtx, cancelFunc, DefaultProxyIdleTimeout, sugar)
@@ -126,11 +132,12 @@ func handler(conn net.Conn, r string) {
 
 	sugar.Infof(cm + " finish copy")
 
+	dlTime := time.Now().Add(IdleTimeout)
 	if conn != nil {
-		defer conn.Close()
+		conn.SetDeadline(dlTime)
 	}
 	if client != nil {
-		defer client.Close()
+		client.SetDeadline(dlTime)
 	}
 	sugar.Infof(cm + " close connections")
 }
