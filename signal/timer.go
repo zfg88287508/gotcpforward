@@ -25,14 +25,14 @@ func (t *ActivityTimer) Update() {
 	select {
 	case t.updated <- struct{}{}:
 		t.logger.Infof(cm + " update timer for ActivityTimer")
-	case <-time.After(1 * time.Second):
+	case <-time.After(200 * time.Millisecond):
 	}
 }
 
 func (t *ActivityTimer) check() error {
 	select {
 	case <-t.updated:
-	default:
+	case <-time.After(200 * time.Millisecond):
 		t.finish()
 	}
 	return nil
@@ -81,7 +81,7 @@ func CancelAfterInactivity(ctx context.Context, cancel func(), timeout time.Dura
 	ch := make(chan struct{}, 1)
 	select {
 	case ch <- struct{}{}:
-	default:
+	case <-time.After(100 * time.Millisecond):
 
 	}
 	timer := &ActivityTimer{

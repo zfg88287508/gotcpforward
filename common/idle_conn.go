@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"go.uber.org/zap"
 	"net"
 	"sync/atomic"
@@ -19,7 +20,7 @@ func NewIdleTimeoutConnV3(conn net.Conn, fn func(), logger *zap.SugaredLogger) *
 	ch := make(chan bool)
 	select {
 	case ch <- true:
-	default:
+	case <-time.After(100 * time.Millisecond):
 
 	}
 	c := &IdleTimeoutConnV3{
@@ -36,9 +37,13 @@ func (ic *IdleTimeoutConnV3) Read(buf []byte) (int, error) {
 	go ic.UpdateIdleTime()
 	select {
 	case ic.Updated <- true:
-	default:
+	case <-time.After(100 * time.Millisecond):
 	}
-	return ic.Conn.Read(buf)
+
+	if ic.Conn != nil {
+		return ic.Conn.Read(buf)
+	}
+	return 0, errors.New(" IdleTimeoutConnV3 failed to Read")
 }
 
 func (ic *IdleTimeoutConnV3) UpdateIdleTime() {
@@ -46,11 +51,11 @@ func (ic *IdleTimeoutConnV3) UpdateIdleTime() {
 	case <-ic.Updated:
 
 		la := ic.AfterDelay.Load()
-		ic.AfterDelay.Store(time.Now().Add(5 * time.Second).Unix())
-		if la <= 0 || la <= time.Now().Unix() {
+		ic.AfterDelay.Store(time.Now().Add(600 * time.Millisecond).UnixMilli())
+		if la <= 0 || la <= time.Now().UnixMilli() {
 			go ic.update()
 		}
-	case <-time.After(1 * time.Second):
+	case <-time.After(200 * time.Millisecond):
 
 	}
 }
@@ -59,9 +64,12 @@ func (ic *IdleTimeoutConnV3) Write(buf []byte) (int, error) {
 	go ic.UpdateIdleTime()
 	select {
 	case ic.Updated <- true:
-	default:
+	case <-time.After(100 * time.Millisecond):
 	}
-	return ic.Conn.Write(buf)
+	if ic.Conn != nil {
+		return ic.Conn.Write(buf)
+	}
+	return 0, errors.New(" IdleTimeoutConnV3 failed to Write")
 }
 
 func (c *IdleTimeoutConnV3) Close() {
